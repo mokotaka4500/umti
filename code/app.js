@@ -37,6 +37,33 @@ const THEME_COLORS = [
     "#F97316"  // Orange
 ];
 
+// 初期サンプルデータ (初めてアプリを開いた際の設定)
+const SAMPLE_DATA = {
+    weeklySchedule: [
+        { id: "w-1", title: "週次全体ミーティング", day: 1, timeblock: "specific", startTime: "09:30", endTime: "10:30", category: "work", color: "#4F46E5", notes: "進捗報告と今週のタスク確認" },
+        { id: "w-2", title: "フィットネスジム", day: 2, timeblock: "evening", startTime: "", endTime: "", category: "private", color: "#10B981", notes: "脚トレーニング・有酸素" },
+        { id: "w-3", title: "英語学習 (英会話)", day: 3, timeblock: "morning", startTime: "", endTime: "", category: "private", color: "#8B5CF6", notes: "オンラインレッスン30分" },
+        { id: "w-4", title: "部屋の掃除・ゴミ出し", day: 4, timeblock: "morning", startTime: "", endTime: "", category: "private", color: "#EC4899", notes: "不燃ゴミの日" },
+        { id: "w-5", title: "週の振り返り・タスク整理", day: 5, timeblock: "afternoon", startTime: "", endTime: "", category: "work", color: "#0EA5E9", notes: "次週の目標設定" }
+    ],
+    todos: [
+        { id: "todo-1", title: "月次報告書の作成・提出", category: "work", priority: "high", deadline: "2026-05-29T18:00", notes: "フォーマットに沿って記入。部長へメール送付", completed: false },
+        { id: "todo-2", title: "牛乳と朝食用の食パンを買い出し", category: "shopping", priority: "low", deadline: "2026-05-28T12:00", notes: "期限の長いものを買う", completed: false },
+        { id: "todo-3", title: "美容院の予約を取る", category: "private", priority: "medium", deadline: "2026-05-30T10:00", notes: "土曜日の午後に空きがあるか確認", completed: true },
+        { id: "todo-4", title: "車のオイル交換予約", category: "other", priority: "medium", deadline: "2026-06-03T15:00", notes: "近くのディーラーへ連絡", completed: false }
+    ],
+    events: [
+        { id: "ev-1", title: "同僚と新宿でディナー", start: "2026-05-27T19:00", end: "2026-05-27T21:30", color: "#F59E0B", notes: "イタリアンバル。会費4,000円" },
+        { id: "ev-2", title: "歯医者で定期検診", start: "2026-05-28T15:00", end: "2026-05-28T16:00", color: "#0EA5E9", notes: "クリーニングとホワイトニング相談" },
+        { id: "ev-3", title: "家族の誕生日会", start: "2026-05-31T12:00", end: "2026-05-31T15:00", color: "#8B5CF6", notes: "実家にて食事会" }
+    ],
+    settings: {
+        saturday: true,
+        mondayStart: true,
+        theme: 'light'
+    },
+    timetableImage: ""
+};
 
 // カレンダー表示管理用
 let currentCalendarDate = new Date();
@@ -60,23 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // カラーピッカー初期化
     initColorPickers();
-    requestNotificationPermission(); // 起動時に通知許可をリクエスト
-
 });
-
-function getEmptyState() {
-    return {
-        weeklySchedule: [],
-        todos: [],
-        events: [],
-        settings: {
-            saturday: true,
-            mondayStart: true,
-            theme: 'light'
-        },
-        timetableImage: ""
-    };
-}
 
 function loadData() {
     const saved = localStorage.getItem("campus_organizer_data");
@@ -84,11 +95,11 @@ function loadData() {
         try {
             state = JSON.parse(saved);
         } catch (e) {
-            console.error("データの読み込みに失敗しました。データを初期化します。", e);
-            state = getEmptyState();
+            console.error("データの読み込みに失敗しました。サンプルを使用します。", e);
+            state = JSON.parse(JSON.stringify(SAMPLE_DATA));
         }
     } else {
-        state = getEmptyState();
+        state = JSON.parse(JSON.stringify(SAMPLE_DATA));
         saveData();
     }
 
@@ -105,7 +116,7 @@ function loadData() {
         if (state.settings.theme === undefined) state.settings.theme = 'light';
     }
     if (state.timetableImage === undefined) state.timetableImage = "";
-
+    
     state.todos.forEach(t => {
         if (t.recurrence === undefined) t.recurrence = "none";
     });
@@ -124,24 +135,6 @@ function saveData() {
 function initTheme() {
     const theme = state.settings.theme || 'light';
     document.documentElement.setAttribute('data-theme', theme);
-}
-
-// 通知の許可をリクエストする関数
-function requestNotificationPermission() {
-    if (!("Notification" in window)) {
-        console.log("このブラウザは通知に対応していません。");
-        return;
-    }
-
-    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-        Notification.requestPermission().then(permission => {
-            if (permission === "granted") {
-                console.log("通知が許可されました！");
-                // テスト用の即時通知
-                new Notification("TimeMatch", { body: "通知機能が有効になりました！" });
-            }
-        });
-    }
 }
 
 // ==========================================
@@ -275,18 +268,11 @@ function renderDashboard() {
             item.className = "dash-item";
             item.style.borderLeftColor = todo.priority === 'high' ? 'var(--accent-red)' : (todo.priority === 'medium' ? 'var(--accent-yellow)' : 'var(--accent-green)');
 
-            const freeTime = calculateFreeTimeRemaining(todo.deadline);
-            const balancerClass = freeTime < 3 ? 'danger' : '';
-            const balancerIcon = freeTime < 3 ? '🚨' : '🕒';
-            const balancerBadge = `<span class="balancer-badge ${balancerClass}">${balancerIcon} 実質残り: ${freeTime}h</span>`;
-
             item.innerHTML = `
                 <div>
                     <div style="font-weight:700; font-size:0.95rem;">${todo.title}</div>
-                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                        ${balancerBadge}
-                        <span>🏷️ ${CATEGORIES[todo.category].icon} ${CATEGORIES[todo.category].label}</span>
-                        <span>| 📅 締切: ${formatDate(todo.deadline)}</span>
+                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">
+                        🏷️ ${CATEGORIES[todo.category].icon} ${CATEGORIES[todo.category].label} | 📅 締切: ${formatDate(todo.deadline)}
                     </div>
                 </div>
                 <div class="todo-countdown ${countdownClass}">${countdownInfo.text}</div>
@@ -330,7 +316,8 @@ function calculateTodoProgress() {
     circle.style.strokeDashoffset = offset;
 }
 
-// --- 2. 週間プランナー画面の描画 (A案: 曜日カードリスト) ---
+// --- 2. 週間プランナー画面の描画 ---
+// --- 2. 週間プランナー画面の描画 ---
 function renderWeeklyPlanner() {
     const container = document.getElementById("weekly-planner-container");
     if (!container) return;
@@ -404,8 +391,14 @@ function renderWeeklyPlanner() {
                 else if (schedule.timeblock === 'evening') timeStr = "🌙 夜";
                 else timeStr = `🕰️ ${schedule.startTime}〜${schedule.endTime}`;
 
-                item.onclick = () => openEditWeeklyEvent(schedule.id);
+                // カード自体をクリックした時は編集モーダルを開く
+                item.onclick = (e) => {
+                    if (!e.target.closest('.btn-item-delete')) {
+                        openEditWeeklyEvent(schedule.id);
+                    }
+                };
 
+                // 【修正箇所】ゴミ箱ボタンを確実に表示し、クリック時のイベント伝播を停止
                 item.innerHTML = `
                     <div class="time-block-left">
                         <span class="time-block-meta">${timeStr}</span>
@@ -447,7 +440,11 @@ function renderSplitView() {
 
     // タイトルの切り替え
     const titleEl = document.getElementById("split-schedule-title");
-
+    if (titleEl) {
+        titleEl.innerText = isToday
+            ? "本日のスケジュール"
+            : `${baseDate.getMonth() + 1}月${baseDate.getDate()}日のスケジュール`;
+    }
 
     const dateEl = document.getElementById("split-date");
     if (dateEl) dateEl.innerText = dateStr;
@@ -508,7 +505,7 @@ function renderSplitView() {
                 const startStr = ev.start.split("T")[1] || "09:00";
                 const sParts = startStr.split(":");
                 start = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
-
+                
                 let endStr = "10:00";
                 if (ev.end) {
                     endStr = ev.end.split("T")[1] || "10:00";
@@ -550,7 +547,7 @@ function renderSplitView() {
             if (p.end > dayEnd) dayEnd = p.end;
         });
 
-        // 重複予定のマージ
+        // 重重複予定のマージ
         let merged = [];
         parsed.forEach(p => {
             if (merged.length === 0) {
@@ -649,14 +646,10 @@ function renderSplitView() {
 
                         slot.style.cursor = "pointer";
                         slot.onclick = (e) => {
-                            if (!e.target.closest('.btn-item-delete') && !e.target.closest('.btn-reschedule')) {
+                            if (!e.target.closest('.btn-item-delete')) {
                                 openEditEventOrWeekly(p.id, p.type);
                             }
                         };
-
-                        const rescheduleBtn = p.type === 'event' ? `
-                            <button class="btn-reschedule" onclick="rescheduleEvent('${p.id}', '${p.type}'); event.stopPropagation();" title="翌日以降の空き時間にリスケ">🔄</button>
-                        ` : '';
 
                         slot.innerHTML = `
                             <div style="flex: 1;">
@@ -666,10 +659,7 @@ function renderSplitView() {
                                 </div>
                                 ${p.notes ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${p.notes}</div>` : ''}
                             </div>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                ${rescheduleBtn}
-                                <button class="btn-item-delete" onclick="deleteEventOrWeekly('${p.id}', '${p.type}', event)" title="削除">🗑️</button>
-                            </div>
+                            <button class="btn-item-delete" onclick="deleteEventOrWeekly('${p.id}', '${p.type}', event)" title="削除">🗑️</button>
                         `;
                         leftContainer.appendChild(slot);
                     });
@@ -983,16 +973,14 @@ function renderWeekView(weekDaysIndices, cols, showSatSun) {
             colDiv.appendChild(card);
         });
 
-        // 時間付きイベントの重なり計算（グリーディー列分割）
-        // 1. 開始時刻順にソート
+        // 時間付きイベントの重なり計算
         const sorted = [...dayEvents].sort((a, b) => {
             const ta = a.start ? new Date(a.start).getTime() : 0;
             const tb = b.start ? new Date(b.start).getTime() : 0;
             return ta - tb;
         });
 
-        // 2. 重なりグループを検出して列を割り当てる
-        const columns = []; // columns[i] = last end time of that sub-column
+        const columns = []; 
         const assigned = sorted.map(ev => {
             const start = ev.start ? new Date(ev.start) : new Date(d);
             const end = ev.end ? new Date(ev.end) : new Date(start.getTime() + 60 * 60 * 1000);
@@ -1044,15 +1032,11 @@ function renderWeekView(weekDaysIndices, cols, showSatSun) {
         const nowMin = now.getHours() * 60 + now.getMinutes();
         const nowTop = nowMin * (HOUR_PX / 60);
 
-        // 今日の列インデックス
         const todayColIdx = cells.findIndex(d => formatDateISO(d) === todayISO);
         if (todayColIdx >= 0) {
-            // インジケーターを weekCols の絶対ポジションで出すため
-            // すべての列をまたぐ幅で表示する
             const indicator = document.createElement("div");
             indicator.className = "week-time-indicator";
             indicator.style.top = `${nowTop}px`;
-            // 全幅にまたがせる
             indicator.style.left = "0";
             indicator.style.right = "0";
             weekCols.style.position = "relative";
@@ -1064,12 +1048,10 @@ function renderWeekView(weekDaysIndices, cols, showSatSun) {
     wrapper.appendChild(scrollBody);
     grid.appendChild(wrapper);
 
-    // 現在時刻付近にスクロール
     const now = new Date();
     const scrollTarget = Math.max(0, (now.getHours() - 1) * HOUR_PX);
     requestAnimationFrame(() => { scrollBody.scrollTop = scrollTarget; });
 }
-
 
 function renderCalendarCells(cells, grid, isMonth) {
     const today = new Date();
@@ -1080,7 +1062,6 @@ function renderCalendarCells(cells, grid, isMonth) {
         cell.className = "calendar-day-cell";
         if (isMonth && !c.currentMonth) cell.classList.add("other-month");
 
-        // 週ビューのセルは高さを大きく
         if (!isMonth) {
             cell.style.minHeight = "120px";
         }
@@ -1151,7 +1132,6 @@ function renderCalendarCells(cells, grid, isMonth) {
             allItems.push({ type: 'todo', color: '#EF4444', label: `⚠ ${t.title}`, sortVal });
         });
 
-        // 時間順ソート
         allItems.sort((a, b) => a.sortVal - b.sortVal);
 
         const MAX_VISIBLE = isMonth ? 3 : 5;
@@ -1160,7 +1140,7 @@ function renderCalendarCells(cells, grid, isMonth) {
             badge.className = "calendar-event-dot";
             badge.style.backgroundColor = item.color;
             badge.textContent = item.label;
-            // mini dot for extra small fallback (hidden via CSS on mobile now)
+
             const miniDot = document.createElement("span");
             miniDot.className = "calendar-event-mini-dot";
             miniDot.style.backgroundColor = item.color;
@@ -1188,30 +1168,27 @@ function renderCalendarCells(cells, grid, isMonth) {
 }
 
 // --- 5. Todoリスト画面の描画 ---
-let currentTodoFilter = 'all';     // 'all', 'active', 'completed'
-let currentTagFilter = 'all';      // 'all', 'work', 'private', 'shopping', 'other'
-let currentTodoSort = 'deadline-asc'; // 'deadline-asc', 'deadline-desc', 'priority-desc'
+let currentTodoFilter = 'all';     
+let currentTagFilter = 'all';      
+let currentTodoSort = 'deadline-asc'; 
 
 function renderTodoList() {
     const container = document.getElementById("todo-list-container");
+    if (!container) return;
     container.innerHTML = "";
 
-    // フィルタリング
     let filtered = state.todos;
 
-    // ① 状態フィルター
     if (currentTodoFilter === 'active') {
         filtered = filtered.filter(t => !t.completed);
     } else if (currentTodoFilter === 'completed') {
         filtered = filtered.filter(t => t.completed);
     }
 
-    // ② カテゴリタグフィルター
     if (currentTagFilter !== 'all') {
         filtered = filtered.filter(t => t.category === currentTagFilter);
     }
 
-    // ソート (未完了優先、その後は指定された順)
     filtered.sort((a, b) => {
         if (a.completed !== b.completed) {
             return a.completed ? 1 : -1;
@@ -1256,21 +1233,12 @@ function renderTodoList() {
             </span>
         ` : '';
 
-        let balancerBadge = '';
-        if (!todo.completed) {
-            const freeTime = calculateFreeTimeRemaining(todo.deadline);
-            const balancerClass = freeTime < 3 ? 'danger' : '';
-            const balancerIcon = freeTime < 3 ? '🚨' : '🕒';
-            balancerBadge = `<span class="balancer-badge ${balancerClass}">${balancerIcon} 実質残り: ${freeTime}h</span>`;
-        }
-
         card.innerHTML = `
             <div class="todo-left">
                 <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" onclick="toggleTodoCompleted('${todo.id}', event)"></div>
                 <div class="todo-info-group">
                     <div class="todo-main-title">${todo.title}</div>
-                    <div class="todo-meta-info" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                        ${balancerBadge}
+                    <div class="todo-meta-info">
                         ${catBadge}
                         <span>📅 締切: ${formatDate(todo.deadline)}</span>
                         <span class="priority-badge ${todo.priority}">${todo.priority === 'high' ? '高' : (todo.priority === 'medium' ? '中' : '低')}</span>
@@ -1312,18 +1280,14 @@ function renderSettings() {
 // ==========================================
 
 function switchPage(pageId, title) {
-    // 全ページ非表示
     document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
 
-    // 対象ページ表示
     const targetPage = document.getElementById("page-" + pageId);
     if (targetPage) targetPage.classList.add("active");
 
-    // ヘッダータイトル更新
     const headerTitle = document.getElementById("header-title");
     if (headerTitle) headerTitle.innerText = title;
 
-    // ヘッダーボタンのアクティブ更新
     const dashBtn = document.getElementById("header-btn-dashboard");
     const setBtn = document.getElementById("header-btn-settings");
     if (dashBtn) dashBtn.classList.remove("active");
@@ -1332,12 +1296,10 @@ function switchPage(pageId, title) {
     if (pageId === "dashboard" && dashBtn) dashBtn.classList.add("active");
     if (pageId === "settings" && setBtn) setBtn.classList.add("active");
 
-    // ボトムナビボタンのアクティブ更新
     document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
     const navBtn = document.getElementById("nav-" + pageId);
     if (navBtn) navBtn.classList.add("active");
 
-    // FAB制御 (合同・設定では非表示)
     const fab = document.getElementById("fab");
     if (fab) {
         if (pageId === "split" || pageId === "settings") {
@@ -1347,18 +1309,17 @@ function switchPage(pageId, title) {
         }
     }
 
-    // 各ページ描画の更新
     if (pageId === 'dashboard') renderDashboard();
     if (pageId === 'split') {
-        splitDateOffset = 0; // 合同タブを開くときは常に今日から
+        splitDateOffset = 0; 
         renderSplitView();
     }
     if (pageId === 'calendar') renderCalendar();
     if (pageId === 'todo') renderTodoList();
     if (pageId === 'settings') renderSettings();
+    if (pageId === 'timetable') renderWeeklyPlanner();
 }
 
-// カレンダービュー切り替え（月/週）
 let currentCalendarView = 'month';
 function switchCalendarView(view) {
     currentCalendarView = view;
@@ -1384,7 +1345,6 @@ function closeModal(id) {
     document.getElementById(id).classList.remove("active");
 }
 
-// カスタム確認ダイアログ（confirm()の代替）
 function showConfirmDialog(message, onConfirm) {
     const overlay = document.getElementById("modal-confirm");
     const msgEl = document.getElementById("confirm-dialog-message");
@@ -1396,7 +1356,6 @@ function showConfirmDialog(message, onConfirm) {
     msgEl.innerText = message;
     overlay.classList.add("active");
 
-    // 既存のリスナーを一度削除（重複防止）
     const newOkBtn = okBtn.cloneNode(true);
     const newCancelBtn = cancelBtn.cloneNode(true);
     okBtn.parentNode.replaceChild(newOkBtn, okBtn);
@@ -1411,7 +1370,6 @@ function showConfirmDialog(message, onConfirm) {
     });
 }
 
-// カラーピッカー初期化
 function initColorPickers() {
     const wPicker = document.getElementById("weekly-color-picker");
     const ePicker = document.getElementById("event-color-picker");
@@ -1420,7 +1378,6 @@ function initColorPickers() {
     ePicker.innerHTML = "";
 
     THEME_COLORS.forEach((color, idx) => {
-        // 習慣用
         const wOpt = document.createElement("div");
         wOpt.className = `color-option ${idx === 0 ? 'selected' : ''}`;
         wOpt.style.backgroundColor = color;
@@ -1431,7 +1388,6 @@ function initColorPickers() {
         };
         wPicker.appendChild(wOpt);
 
-        // カレンダー用
         const eOpt = document.createElement("div");
         eOpt.className = `color-option ${idx === 1 ? 'selected' : ''}`;
         eOpt.style.backgroundColor = color;
@@ -1443,8 +1399,6 @@ function initColorPickers() {
         ePicker.appendChild(eOpt);
     });
 }
-
-// --- 習慣・週間スケジュール処理 ---
 
 function toggleWeeklyTimeInput() {
     const select = document.getElementById("weekly-timeblock-select");
@@ -1472,7 +1426,7 @@ function toggleEventAllDay() {
         endInput.type = "date";
         if (startLabel) startLabel.innerText = "開始日 *";
         if (endLabel) endLabel.innerText = "終了日";
-
+        
         if (startVal && startVal.includes("T")) startInput.value = startVal.split("T")[0];
         if (endVal && endVal.includes("T")) endInput.value = endVal.split("T")[0];
     } else {
@@ -1488,7 +1442,7 @@ function toggleEventAllDay() {
 
 function isEventOnDate(ev, dateStr) {
     const evStartStr = ev.start.split("T")[0];
-
+    
     if (!ev.recurrence || ev.recurrence === 'none') {
         if (ev.end) {
             const evEndStr = ev.end.split("T")[0];
@@ -1496,24 +1450,16 @@ function isEventOnDate(ev, dateStr) {
         }
         return evStartStr === dateStr;
     }
-
+    
     if (dateStr < evStartStr) return false;
-
+    
     const targetDate = new Date(dateStr);
     const startDate = new Date(evStartStr);
-
-    if (ev.recurrence === 'daily') {
-        return true;
-    }
-
-    if (ev.recurrence === 'weekly') {
-        return targetDate.getDay() === startDate.getDay();
-    }
-
-    if (ev.recurrence === 'monthly') {
-        return targetDate.getDate() === startDate.getDate();
-    }
-
+    
+    if (ev.recurrence === 'daily') return true;
+    if (ev.recurrence === 'weekly') return targetDate.getDay() === startDate.getDay();
+    if (ev.recurrence === 'monthly') return targetDate.getDate() === startDate.getDate();
+    
     return false;
 }
 
@@ -1525,13 +1471,11 @@ function openAddWeeklyEvent(day = 1) {
     document.getElementById("weekly-day-select").value = day;
     document.getElementById("weekly-time-input-row").style.display = "none";
 
-    // カラーリセット
     document.getElementById("weekly-color").value = THEME_COLORS[0];
     const picker = document.getElementById("weekly-color-picker");
     picker.querySelectorAll(".color-option").forEach(o => o.classList.remove("selected"));
     picker.children[0].classList.add("selected");
 
-    // 土日の表示切り替え
     document.getElementById("weekly-opt-sat").style.display = state.settings.saturday ? "block" : "none";
     document.getElementById("weekly-opt-sun").style.display = state.settings.saturday ? "block" : "none";
 
@@ -1558,7 +1502,6 @@ function openEditWeeklyEvent(id) {
         document.getElementById("weekly-time-input-row").style.display = "none";
     }
 
-    // カラー
     document.getElementById("weekly-color").value = item.color;
     const picker = document.getElementById("weekly-color-picker");
     picker.querySelectorAll(".color-option").forEach(o => {
@@ -1583,8 +1526,6 @@ function deleteWeeklySchedule(id, event) {
         renderCalendar();
     });
 }
-
-// --- Todo処理 ---
 
 function openAddTodo(dateStr = "") {
     document.getElementById("todo-modal-title").innerText = "Todo・タスクの追加";
@@ -1643,7 +1584,6 @@ function toggleTodoCompleted(id, event) {
         const wasCompleted = todo.completed;
         todo.completed = !todo.completed;
 
-        // 完了(未完了から完了へ)かつ繰り返し設定が'none'以外の場合、次の期日のTodoを自動生成
         if (!wasCompleted && todo.completed && todo.recurrence && todo.recurrence !== 'none') {
             const currentDeadline = new Date(todo.deadline);
             let nextDeadline = new Date(currentDeadline);
@@ -1677,8 +1617,6 @@ function toggleTodoCompleted(id, event) {
     }
 }
 
-// --- カレンダー予定処理 ---
-
 function openAddEvent(dateStr = "") {
     document.getElementById("event-modal-title").innerText = "予定の追加";
     document.getElementById("form-event").reset();
@@ -1695,9 +1633,9 @@ function openAddEvent(dateStr = "") {
     if (dateStr) {
         const d = new Date(dateStr);
         d.setHours(10, 0, 0, 0);
-        document.getElementById("event-start").value = formatDateISO(d);
+        document.getElementById("event-start").value = formatDateISO(d) + "T10:00";
         d.setHours(11, 0, 0, 0);
-        document.getElementById("event-end").value = formatDateISO(d);
+        document.getElementById("event-end").value = formatDateISO(d) + "T11:00";
     } else {
         document.getElementById("event-start").value = formatDateTimeLocal(now);
         now.setHours(now.getHours() + 1);
@@ -1720,7 +1658,7 @@ function openEditEvent(id) {
     document.getElementById("event-modal-title").innerText = "予定の編集";
     document.getElementById("event-id").value = ev.id;
     document.getElementById("event-title").value = ev.title;
-
+    
     document.getElementById("event-allday").checked = !!ev.allDay;
     toggleEventAllDay();
 
@@ -1731,7 +1669,6 @@ function openEditEvent(id) {
     document.getElementById("event-travel-time").value = ev.travelTime || "";
     document.getElementById("event-notes").value = ev.notes || "";
 
-    // 色
     document.getElementById("event-color").value = ev.color;
     const picker = document.getElementById("event-color-picker");
     picker.querySelectorAll(".color-option").forEach(o => {
@@ -1746,13 +1683,14 @@ function openEditEvent(id) {
 }
 
 function deleteEvent(id) {
-    if (confirm("この予定を削除しますか？")) {
+    showConfirmDialog("この予定を削除しますか？", () => {
         state.events = state.events.filter(e => e.id !== id);
         saveData();
         closeModal("modal-day-details");
         renderCalendar();
         renderDashboard();
-    }
+        renderSplitView();
+    });
 }
 
 // カレンダー日付詳細モーダル
@@ -1766,7 +1704,7 @@ function openDayDetails(date, dayEvents, dayTodos, dayWeekly) {
 
     let hasItems = false;
 
-    // ① 週間スケジュール
+    // ① 週間スケジュール（修正：ここにも編集・削除ボタンを追加しました）
     if (dayWeekly.length > 0) {
         hasItems = true;
         dayWeekly.forEach(w => {
@@ -1775,6 +1713,9 @@ function openDayDetails(date, dayEvents, dayTodos, dayWeekly) {
             item.style.borderRadius = "8px";
             item.style.backgroundColor = "var(--bg-primary)";
             item.style.borderLeft = `4px solid ${w.color}`;
+            item.style.display = "flex";
+            item.style.justifyContent = "space-between";
+            item.style.alignItems = "center";
 
             let timeStr = "";
             if (w.timeblock === 'morning') timeStr = "朝";
@@ -1783,8 +1724,14 @@ function openDayDetails(date, dayEvents, dayTodos, dayWeekly) {
             else timeStr = `${w.startTime}〜${w.endTime}`;
 
             item.innerHTML = `
-                <div style="font-weight:600; font-size:0.85rem;">🔄 週間定期: ${w.title} (${timeStr})</div>
-                ${w.notes ? `<div style="font-size:0.7rem; color:var(--text-secondary); margin-top:2px;">${w.notes}</div>` : ''}
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:0.85rem;">🔄 週間定期: ${w.title} (${timeStr})</div>
+                    ${w.notes ? `<div style="font-size:0.7rem; color:var(--text-secondary); margin-top:2px;">${w.notes}</div>` : ''}
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="todo-delete-btn" onclick="closeModal('modal-day-details'); openEditWeeklyEvent('${w.id}')" title="編集">✏️</button>
+                    <button class="todo-delete-btn" onclick="deleteWeeklySchedule('${w.id}', event); closeModal('modal-day-details');" title="削除">🗑️</button>
+                </div>
             `;
             listContainer.appendChild(item);
         });
@@ -1826,8 +1773,7 @@ function openDayDetails(date, dayEvents, dayTodos, dayWeekly) {
                     ${extraText ? `<div style="font-size:0.75rem; color:var(--primary); font-weight:500; margin-top:2px;">${extraText}</div>` : ''}
                     ${ev.notes ? `<div style="font-size:0.7rem; color:var(--text-secondary); margin-top:2px;">${ev.notes}</div>` : ''}
                 </div>
-                <div style="display:flex; gap:6px; align-items:center;">
-                    <button class="btn-reschedule" onclick="rescheduleEvent('${ev.id}', 'event'); closeModal('modal-day-details');" title="翌日以降の空き時間にリスケ">🔄</button>
+                <div style="display:flex; gap:6px;">
                     <button class="todo-delete-btn" onclick="openEditEvent('${ev.id}')" title="編集">✏️</button>
                     <button class="todo-delete-btn" onclick="deleteEvent('${ev.id}')" title="削除">🗑️</button>
                 </div>
@@ -1868,9 +1814,6 @@ function openDayDetails(date, dayEvents, dayTodos, dayWeekly) {
 
     openModal("modal-day-details");
 }
-
-// --- 新規登録モーダル呼び出しフロー用 ---
-
 function openAddWeeklyEventFromSelector() {
     closeModal("modal-add-selector");
     openAddWeeklyEvent(1);
@@ -1891,10 +1834,8 @@ function openAddEventFromSelector() {
 // ==========================================
 
 function initEventListeners() {
-    // 画面外クリック時にポップアップメニューを閉じる
     document.addEventListener("click", closeAllMenus);
 
-    // FABクリック ➡ 各タブに応じた追加画面へ直接遷移、または選択表示
     document.getElementById("fab").addEventListener("click", () => {
         const activePage = document.querySelector(".page.active");
         if (activePage) {
@@ -1911,7 +1852,6 @@ function initEventListeners() {
         }
     });
 
-    // 1. 習慣予定フォーム Submit
     document.getElementById("form-weekly").addEventListener("submit", (e) => {
         e.preventDefault();
 
@@ -1943,7 +1883,6 @@ function initEventListeners() {
         renderCalendar();
     });
 
-    // 2. Todoフォーム Submit
     document.getElementById("form-todo").addEventListener("submit", (e) => {
         e.preventDefault();
 
@@ -1974,7 +1913,6 @@ function initEventListeners() {
         renderCalendar();
     });
 
-    // 3. カレンダー単発予定フォーム Submit
     document.getElementById("form-event").addEventListener("submit", (e) => {
         e.preventDefault();
 
@@ -2004,15 +1942,14 @@ function initEventListeners() {
         closeModal("modal-event-edit");
         renderCalendar();
         renderDashboard();
+        renderSplitView();
     });
 
-    // 日にち詳細モーダルからの予定追加紐付け
     document.getElementById("btn-add-event-for-day").onclick = () => {
         closeModal("modal-day-details");
         openAddEvent(activeDateForAdd);
     };
 
-    // カレンダー前後移動 ・ 今日へ戻る
     document.getElementById("cal-prev").onclick = () => {
         if (currentCalendarView === 'week') {
             currentCalendarDate.setDate(currentCalendarDate.getDate() - 7);
@@ -2034,12 +1971,10 @@ function initEventListeners() {
         renderCalendar();
     };
 
-    // Todo状態フィルターボタン
     document.getElementById("todo-filter-all").onclick = () => setTodoFilter('all');
     document.getElementById("todo-filter-active").onclick = () => setTodoFilter('active');
     document.getElementById("todo-filter-completed").onclick = () => setTodoFilter('completed');
 
-    // Todo並び替えセレクトボックス
     const sortSelect = document.getElementById("todo-sort-select");
     if (sortSelect) {
         sortSelect.onchange = (e) => {
@@ -2048,15 +1983,12 @@ function initEventListeners() {
         };
     }
 
-    // Todoカテゴリタグフィルターボタン
     document.getElementById("tag-filter-all").onclick = () => setTagFilter('all');
     document.getElementById("tag-filter-work").onclick = () => setTagFilter('work');
     document.getElementById("tag-filter-private").onclick = () => setTagFilter('private');
     document.getElementById("tag-filter-shopping").onclick = () => setTagFilter('shopping');
     document.getElementById("tag-filter-other").onclick = () => setTagFilter('other');
 
-    // 設定スイッチ
-    // ダークモード切り替え
     const darkThemeToggle = document.getElementById("setting-dark-theme");
     if (darkThemeToggle) {
         darkThemeToggle.onchange = (e) => {
@@ -2081,45 +2013,44 @@ function initEventListeners() {
         renderWeeklyPlanner();
     };
 
-    // 全リセット
     document.getElementById("btn-reset-data").onclick = () => {
-        if (confirm("警告: すべての予定、Todo、画像が完全に削除されます。初期化しますか？")) {
+        showConfirmDialog("警告: すべての予定、Todo、画像が完全に削除されます。初期化しますか？", () => {
             localStorage.removeItem("campus_organizer_data");
             location.reload();
-        }
+        });
     };
 
-    // 画像アップロード・カメラ連携
     const uploadArea = document.getElementById("image-upload-area");
     const imageInput = document.getElementById("timetable-image-input");
 
-    uploadArea.onclick = () => imageInput.click();
+    if (uploadArea && imageInput) {
+        uploadArea.onclick = () => imageInput.click();
 
-    imageInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        imageInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            compressImage(event.target.result, 800, 0.6, (compressedDataUrl) => {
-                state.timetableImage = compressedDataUrl;
-                saveData();
-                renderSettings();
-            });
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                compressImage(event.target.result, 800, 0.6, (compressedDataUrl) => {
+                    state.timetableImage = compressedDataUrl;
+                    saveData();
+                    renderSettings();
+                });
+            };
+            reader.readAsDataURL(file);
         };
-        reader.readAsDataURL(file);
-    };
+    }
 
-    // 画像削除
     document.getElementById("image-remove-btn").onclick = () => {
-        if (confirm("登録した画像を削除しますか？")) {
+        showConfirmDialog("登録した画像を削除しますか？", () => {
             state.timetableImage = "";
             saveData();
             renderSettings();
-        }
+        });
     };
 
-    // === 見比べ画面のレジライザー(仕切り線)ドラッグ処理 ===
+    // === Split View ドラッグリサイズ処理 ===
     const splitContainer = document.getElementById("split-container");
     const splitLeft = document.getElementById("split-left");
     const splitDivider = document.getElementById("split-divider");
@@ -2135,27 +2066,24 @@ function initEventListeners() {
     const resize = (e) => {
         if (!isResizing) return;
 
-        // ドラッグ中は画面スクロール等のデフォルト挙動を防止
         if (e.cancelable) e.preventDefault();
 
         const containerRect = splitContainer.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
 
         const isMobile = window.innerWidth < 768;
 
         if (isMobile) {
-            // 上下分割: 高さ比率を計算
             const percentage = ((clientY - containerRect.top) / containerRect.height) * 100;
             const constrained = Math.max(15, Math.min(85, percentage));
             splitLeft.style.height = `calc(${constrained}% - 8px)`;
-            splitLeft.style.width = ""; // 横幅指定をクリア
+            splitLeft.style.width = ""; 
         } else {
-            // 左右分割: 幅比率を計算
             const percentage = ((clientX - containerRect.left) / containerRect.width) * 100;
             const constrained = Math.max(15, Math.min(85, percentage));
             splitLeft.style.width = `calc(${constrained}% - 8px)`;
-            splitLeft.style.height = ""; // 高さ指定をクリア
+            splitLeft.style.height = ""; 
         }
     };
 
@@ -2167,16 +2095,16 @@ function initEventListeners() {
         }
     };
 
-    splitDivider.addEventListener("mousedown", startResize);
-    splitDivider.addEventListener("touchstart", startResize, { passive: true });
+    if (splitDivider) {
+        splitDivider.addEventListener("mousedown", startResize);
+        splitDivider.addEventListener("touchstart", startResize, { passive: true });
+    }
 
     document.addEventListener("mousemove", resize);
     document.addEventListener("touchmove", resize, { passive: false });
-
     document.addEventListener("mouseup", stopResize);
     document.addEventListener("touchend", stopResize);
 
-    // モーダルの枠外（オーバーレイ部分）をタップした際に閉じる
     document.querySelectorAll(".modal-overlay").forEach(overlay => {
         overlay.addEventListener("click", (e) => {
             if (e.target === overlay) {
@@ -2185,37 +2113,92 @@ function initEventListeners() {
         });
     });
 
-    // ==========================================
-    // スワイプ画面切り替え機能
-    // ==========================================
-    initSwipeNavigation();
+    // === 左右スワイプ画面切り替え機能 ===
+    const PAGE_ORDER = ['page-calendar', 'page-split', 'page-todo', 'page-settings'];
+    const NAV_MAP = { 'page-calendar': 'calendar', 'page-split': 'split', 'page-todo': 'todo', 'page-settings': 'settings' };
+    const TITLE_MAP = { 'page-calendar': 'スケジュール', 'page-split': '合同', 'page-todo': 'Todoリスト', 'page-settings': '設定・画像' };
+    
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    const mainContainer = document.querySelector('main');
+
+    if (mainContainer) {
+        mainContainer.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches.length > 0) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        mainContainer.addEventListener('touchend', (e) => {
+            const activePage = document.querySelector('.page.active');
+            if (!activePage) return;
+            const currentPageId = activePage.id;
+
+            if (currentPageId === 'page-split') return;
+
+            if (!e.changedTouches || e.changedTouches.length === 0) return;
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+
+            const diffX = touchStartX - touchEndX;
+            const diffY = touchStartY - touchEndY;
+
+            if (Math.abs(diffY) > Math.abs(diffX)) return;
+            if (Math.abs(diffX) < 50) return;
+
+            if (currentPageId === 'page-calendar' && currentCalendarView === 'month') {
+                if (diffX > 0) {
+                    const nextBtn = document.getElementById("cal-next");
+                    if (nextBtn) nextBtn.click();
+                } else {
+                    const prevBtn = document.getElementById("cal-prev");
+                    if (prevBtn) prevBtn.click();
+                }
+                return;
+            }
+
+            let currentIndex = PAGE_ORDER.indexOf(currentPageId);
+            if (currentIndex === -1) return;
+
+            if (diffX > 0) {
+                if (currentIndex < PAGE_ORDER.length - 1) {
+                    const nextPageId = PAGE_ORDER[currentIndex + 1];
+                    switchPage(NAV_MAP[nextPageId], TITLE_MAP[nextPageId]);
+                }
+            } else {
+                if (currentIndex > 0) {
+                    const prevPageId = PAGE_ORDER[currentIndex - 1];
+                    switchPage(NAV_MAP[prevPageId], TITLE_MAP[prevPageId]);
+                }
+            }
+        }, { passive: true });
+    }
 }
 
-// 状態フィルター適用
+// --- 6. ユーティリティ ---
 function setTodoFilter(filter) {
     currentTodoFilter = filter;
-    document.querySelectorAll("#page-todo div:first-child button").forEach(b => {
+    document.querySelectorAll("#page-todo button").forEach(b => {
         if (b.id && b.id.startsWith("todo-filter-")) {
             b.className = "btn btn-secondary";
         }
     });
-    document.getElementById(`todo-filter-${filter}`).className = "btn btn-primary";
+    const activeBtn = document.getElementById(`todo-filter-${filter}`);
+    if (activeBtn) activeBtn.className = "btn btn-primary";
     renderTodoList();
 }
 
-// カテゴリタグフィルター適用
 function setTagFilter(tag) {
     currentTagFilter = tag;
     document.querySelectorAll("[id^='tag-filter-']").forEach(b => {
         b.className = "btn btn-secondary";
     });
-    document.getElementById(`tag-filter-${tag}`).className = "btn btn-primary";
+    const activeBtn = document.getElementById(`tag-filter-${tag}`);
+    if (activeBtn) activeBtn.className = "btn btn-primary";
     renderTodoList();
 }
-
-// ==========================================
-// 6. ユーティリティ
-// ==========================================
 
 function getCountdown(deadlineStr) {
     const now = new Date();
@@ -2302,7 +2285,6 @@ function compressImage(base64Str, maxWidth, quality, callback) {
     };
 }
 
-// ポップアップメニュー制御用
 function toggleActionMenu(id, event) {
     if (event) event.stopPropagation();
     const menu = document.getElementById(`menu-${id}`);
@@ -2318,11 +2300,10 @@ function closeAllMenus() {
     document.querySelectorAll('.action-menu').forEach(m => m.classList.remove('show'));
 }
 
-// タイムラインの空き時間から予定を追加する処理
 function openAddEventFromTimeline(startTime, endTime) {
     const now = new Date();
     const dateStr = formatDateISO(now);
-
+    
     document.getElementById("event-modal-title").innerText = "予定の追加";
     document.getElementById("form-event").reset();
     document.getElementById("event-id").value = "";
@@ -2340,7 +2321,6 @@ function openAddEventFromTimeline(startTime, endTime) {
     openModal("modal-event-edit");
 }
 
-// 見比べ画面からの編集・削除の振り分けヘルパー
 function openEditEventOrWeekly(id, type) {
     if (type === 'weekly') {
         openEditWeeklyEvent(id);
@@ -2356,249 +2336,4 @@ function deleteEventOrWeekly(id, type, event) {
         if (event) event.stopPropagation();
         deleteEvent(id);
     }
-}
-
-// ==========================================
-// 7. 実質残り時間バランサー ＆ 自動リスケ機能
-// ==========================================
-
-// トースト通知を表示
-function showToast(message, type = 'success') {
-    const container = document.getElementById("toast-container");
-    if (!container) return;
-
-    const toast = document.createElement("div");
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `<span>${message}</span>`;
-
-    container.appendChild(toast);
-
-    // アニメーションが終了したら削除 (3秒後)
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
-
-// 特定の日の予定（習慣＋単発）を分単位のビジースロット[startMin, endMin]として取得しマージする
-function getBusySlotsForDate(date) {
-    const dateISO = formatDateISO(date);
-    const dow = date.getDay();
-
-    const todayWeekly = state.weeklySchedule.filter(w => w.day === dow);
-    const todayEvents = state.events.filter(ev => isEventOnDate(ev, dateISO));
-
-    let slots = [];
-
-    todayWeekly.forEach(w => {
-        let start, end;
-        if (w.timeblock === 'morning') { start = 480; end = 600; }
-        else if (w.timeblock === 'afternoon') { start = 780; end = 900; }
-        else if (w.timeblock === 'evening') { start = 1080; end = 1200; }
-        else {
-            const sParts = (w.startTime || "09:00").split(":");
-            start = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
-            const eParts = (w.endTime || "10:00").split(":");
-            end = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
-        }
-        if (end <= start) end = start + 60;
-        slots.push({ start, end });
-    });
-
-    todayEvents.forEach(ev => {
-        let start, end;
-        if (ev.allDay) {
-            start = 480; end = 1320;
-        } else {
-            const startStr = ev.start.split("T")[1] || "09:00";
-            const sParts = startStr.split(":");
-            start = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
-
-            let endStr = "10:00";
-            if (ev.end) {
-                endStr = ev.end.split("T")[1] || "10:00";
-            } else {
-                const endH = String(Math.floor(start / 60) + 1).padStart(2, '0');
-                const endM = String(start % 60).padStart(2, '0');
-                endStr = `${endH}:${endM}`;
-            }
-            const eParts = endStr.split(":");
-            end = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
-        }
-        if (end <= start) end = start + 60;
-        slots.push({ start, end });
-    });
-
-    // 開始順にソート
-    slots.sort((a, b) => a.start - b.start);
-
-    // マージ処理
-    let merged = [];
-    slots.forEach(s => {
-        if (merged.length === 0) {
-            merged.push(s);
-        } else {
-            let last = merged[merged.length - 1];
-            if (s.start < last.end) {
-                last.end = Math.max(last.end, s.end);
-            } else {
-                merged.push(s);
-            }
-        }
-    });
-
-    return merged;
-}
-
-// 締切までの実質的な空き時間（時間数）を計算
-function calculateFreeTimeRemaining(deadlineStr) {
-    if (!deadlineStr) return 0;
-    const now = new Date();
-    const deadline = new Date(deadlineStr);
-
-    if (now >= deadline) return 0;
-
-    let totalFreeMinutes = 0;
-
-    // 現在日から締切日まで日単位でループ
-    let currentDate = new Date(now);
-    currentDate.setHours(0, 0, 0, 0);
-
-    const targetEnd = new Date(deadline);
-    targetEnd.setHours(0, 0, 0, 0);
-
-    while (currentDate <= targetEnd) {
-        // その日の活動可能範囲（08:00 - 22:00 = 480 - 1320分）
-        let startLimit = 480;
-        let endLimit = 1320;
-
-        const isToday = currentDate.getTime() === (new Date(now).setHours(0, 0, 0, 0));
-        const isDeadlineDay = currentDate.getTime() === targetEnd.getTime();
-
-        if (isToday) {
-            const nowMinutes = now.getHours() * 60 + now.getMinutes();
-            startLimit = Math.max(480, nowMinutes);
-        }
-        if (isDeadlineDay) {
-            const deadlineMinutes = deadline.getHours() * 60 + deadline.getMinutes();
-            endLimit = Math.min(1320, deadlineMinutes);
-        }
-
-        if (startLimit < endLimit) {
-            const busySlots = getBusySlotsForDate(currentDate);
-
-            // 活動可能範囲内のbusy時間を計算
-            let busyMinutes = 0;
-            busySlots.forEach(slot => {
-                const s = Math.max(startLimit, slot.start);
-                const e = Math.min(endLimit, slot.end);
-                if (s < e) {
-                    busyMinutes += (e - s);
-                }
-            });
-
-            const dayFreeMinutes = (endLimit - startLimit) - busyMinutes;
-            if (dayFreeMinutes > 0) {
-                totalFreeMinutes += dayFreeMinutes;
-            }
-        }
-
-        // 次の日に進む
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    return parseFloat((totalFreeMinutes / 60).toFixed(1));
-}
-
-// ミリ秒単位の所要時間を満たす次の空きスロット（明日以降）を探索
-function findNextAvailableFreeSlot(durationMs) {
-    const durationMin = Math.ceil(durationMs / (60 * 1000));
-    const now = new Date();
-
-    // 「ワンタップ翌日スキップ」なので翌日の08:00から探索を開始する
-    let searchDate = new Date(now);
-    searchDate.setDate(searchDate.getDate() + 1);
-    searchDate.setHours(8, 0, 0, 0);
-
-    // 最大30日間探索する
-    for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
-        const busySlots = getBusySlotsForDate(searchDate);
-
-        // 08:00 (480) 〜 22:00 (1320) の空きスロットをリストアップ
-        let currentMin = 480;
-        let freeSlots = [];
-
-        busySlots.forEach(slot => {
-            if (slot.start - currentMin >= durationMin) {
-                freeSlots.push({ start: currentMin, end: slot.start });
-            }
-            currentMin = Math.max(currentMin, slot.end);
-        });
-
-        if (1320 - currentMin >= durationMin) {
-            freeSlots.push({ start: currentMin, end: 1320 });
-        }
-
-        // 最初の適合スロットが見つかったら返す
-        if (freeSlots.length > 0) {
-            const chosen = freeSlots[0];
-            const startHour = Math.floor(chosen.start / 60);
-            const startMin = chosen.start % 60;
-
-            const startRes = new Date(searchDate);
-            startRes.setHours(startHour, startMin, 0, 0);
-
-            const endRes = new Date(startRes.getTime() + durationMs);
-            return { start: startRes, end: endRes };
-        }
-
-        searchDate.setDate(searchDate.getDate() + 1);
-    }
-
-    // 万が一見つからない場合は、明日の09:00〜10:00などをフォールバックとする
-    let fallbackStart = new Date(now);
-    fallbackStart.setDate(fallbackStart.getDate() + 1);
-    fallbackStart.setHours(9, 0, 0, 0);
-    let fallbackEnd = new Date(fallbackStart.getTime() + durationMs);
-    return { start: fallbackStart, end: fallbackEnd };
-}
-
-// 予定を自動リスケ（翌日以降の空き時間に移動）
-function rescheduleEvent(eventId, eventType) {
-    if (eventType === 'weekly') {
-        showToast("習慣スケジュールはリスケできません（単発予定のみ有効です）。", "warning");
-        return;
-    }
-
-    const idx = state.events.findIndex(e => e.id === eventId);
-    if (idx === -1) return;
-
-    const ev = state.events[idx];
-
-    // イベントの所要時間を算出 (デフォルト1時間)
-    let durationMs = 60 * 60 * 1000;
-    if (ev.start) {
-        const startT = new Date(ev.start).getTime();
-        const endT = ev.end ? new Date(ev.end).getTime() : startT + durationMs;
-        durationMs = Math.max(30 * 60 * 1000, endT - startT); // 最低30分
-    }
-
-    // 次の空きスロットを探索
-    const newSlot = findNextAvailableFreeSlot(durationMs);
-
-    // イベント更新
-    ev.start = formatDateTimeLocal(newSlot.start);
-    ev.end = formatDateTimeLocal(newSlot.end);
-    ev.allDay = false; // 終日だった場合も時間指定に変換
-
-    saveData();
-
-    // 画面の更新
-    renderCalendar();
-    renderDashboard();
-    renderSplitView();
-
-    // トースト通知
-    const dateStr = `${newSlot.start.getMonth() + 1}/${newSlot.start.getDate()}`;
-    const timeStr = `${String(newSlot.start.getHours()).padStart(2, '0')}:${String(newSlot.start.getMinutes()).padStart(2, '0')}`;
-    showToast(`予定「${ev.title}」を ${dateStr} ${timeStr} にリスケしました！`, "success");
 }
