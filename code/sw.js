@@ -1,26 +1,51 @@
-const CACHE_NAME = 'timematch-v1';
-const ASSETS = [
-    './',
-    './index.html',
-    './style.css',
-    './app.js',
-    './manifest.json'
-];
+// ===================================================
+// sw.js (新規ファイルとして index.html と同じ場所に保存)
+// ===================================================
 
-// インストール時にファイルをキャッシュに保存
-self.addEventListener('install', (e) => {
-    e.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS);
-        })
+// 1. サーバーからプッシュメッセージを受信したときの処理
+self.addEventListener('push', event => {
+    let data = { title: 'ライフ・オーガナイザー', body: '新しい通知があります。' };
+
+    if (event.data) {
+        try {
+            data = event.data.json();
+        } catch (e) {
+            data = { title: 'ライフ・オーガナイザー', body: event.data.text() };
+        }
+    }
+
+    const options = {
+        body: data.body,
+        icon: 'icons/icon-192x192.png',
+        badge: 'icons/icon-192x192.png',
+        data: {
+            url: data.url || './'
+        }
+    };
+
+    event.waitUntil(
+        self.registration.showNotification(data.title, options)
     );
 });
 
-// オフライン時でもキャッシュからページを表示
-self.addEventListener('fetch', (e) => {
-    e.respondWith(
-        caches.match(e.request).then((response) => {
-            return response || fetch(e.request);
+// 2. 通知がクリックされたときの処理
+self.addEventListener('notificationclick', event => {
+    event.notification.close(); // 通知を閉じる
+
+    const targetUrl = event.notification.data.url;
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+            // すでにアプリが開いていればフォーカス、なければ新しく開く
+            for (let i = 0; i < windowClients.length; i++) {
+                const client = windowClients[i];
+                if (client.url.includes(targetUrl) && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(targetUrl);
+            }
         })
     );
 });

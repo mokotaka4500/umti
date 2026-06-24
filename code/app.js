@@ -2337,3 +2337,30 @@ function deleteEventOrWeekly(id, type, event) {
         deleteEvent(id);
     }
 }
+
+
+// ==========================================
+// app.js の最末尾に追加
+// ==========================================
+
+/**
+ * アプリ内から即時ローカル通知を配信する関数 (テスト用など)
+ * @param {string} title 通知タイトル
+ * @param {object} options bodyやiconなどのオプション
+ */
+function sendLocalNotification(title, options = {}) {
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.ready.then(registration => {
+        const defaultOptions = {
+            body: options.body || '',
+            icon: 'icons/icon-192x192.png', // マニフェストに合わせる
+            badge: 'icons/icon-192x192.png',
+            vibrate: [200, 100, 200],
+            data: {
+                url: options.url || './'
+            }
+        };
+        registration.showNotification(title, defaultOptions);
+    });
+}

@@ -502,6 +502,31 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => {
+                        console.log('PWA ServiceWorker 登録成功!', reg.scope);
+                        // 🛠️ Service Worker登録後に通知の許可をリクエストする
+                        return requestNotificationPermission();
+                    })
+                    .catch(err => console.log('PWA ServiceWorker 登録失敗...', err));
+            });
+        }
+
+        // 🛠️ 通知許可を求める関数
+        function requestNotificationPermission() {
+            if (!("Notification" in window)) return;
+            
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    console.log('通知の許可が得られました。');
+                    // ※ここで必要に応じてサーバーへ購読情報(Subscription)を送る処理を呼び出します
+                }
+            });
+        }
+    </script>
 </body>
 
 </html>
