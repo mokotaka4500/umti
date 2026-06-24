@@ -76,6 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadData();
     initTheme();
     initEventListeners();
+    setupNotificationButton();
 
     // レンダリング実行
     renderDashboard();
@@ -2340,7 +2341,7 @@ function deleteEventOrWeekly(id, type, event) {
 
 
 // ==========================================
-// app.js の最末尾に追加
+// app.js の最末尾に追加（ここをそっくり差し替え）
 // ==========================================
 
 /**
@@ -2363,4 +2364,27 @@ function sendLocalNotification(title, options = {}) {
         };
         registration.showNotification(title, defaultOptions);
     });
+}
+
+// 💡 浮いていた関数を独立させ、中の記述を正常化しました
+function setupNotificationButton() {
+    const notifyBtn = document.getElementById("btn-enable-notification");
+    if (!notifyBtn) return;
+
+    notifyBtn.onclick = () => {
+        if (!("Notification" in window)) {
+            alert("このブラウザは通知に対応していません。");
+            return;
+        }
+
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                alert("通知が許可されました！");
+                // テスト通知を飛ばしてみる
+                sendLocalNotification("ライフ・オーガナイザー", { body: "通知の設定が完了しました！" });
+            } else if (permission === 'denied') {
+                alert("通知がブロックされています。ブラウザの設定から許可してください。");
+            }
+        });
+    };
 }
