@@ -7,11 +7,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ライフ・オーガナイザー - スケジュール＆Todo管理</title>
     <link rel="stylesheet" href="style.css">
-    
-    <!-- iOS PWA対応用の拡張メタタグ（iOSでのアプリ判定に必要です） -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 </head>
 
 <body>
@@ -209,7 +204,7 @@
             <div class="card">
                 <div class="card-title">参考用画像・スケジュール写真の登録</div>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 14px;">
-                    仕事 of シフト表、カレンダーのスクショ、トレーニングメニューなどの画像を登録し、いつでも参照できます。
+                    仕事のシフト表、カレンダーのスクショ、トレーニングメニューなどの画像を登録し、いつでも参照できます。
                 </p>
                 <div class="image-upload-area" id="image-upload-area">
                     <span style="font-size: 2rem; display: block; margin-bottom: 8px;">📷</span>
@@ -220,15 +215,6 @@
                     <button class="image-remove-btn" id="image-remove-btn" title="画像を削除">✕</button>
                     <img id="timetable-image-preview" src="" alt="登録スケジュール画像">
                 </div>
-            </div>
-
-            <!-- 🛠️ 通知有効化カードを追加 -->
-            <div class="card">
-                <div class="card-title">通知設定</div>
-                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 14px;">
-                    スケジュールやTodoの締め切り通知を受け取ります。
-                </p>
-                <button class="btn btn-primary btn-full" id="btn-enable-notification">通知を有効にする</button>
             </div>
 
             <div class="card">
@@ -272,6 +258,15 @@
                 </p>
                 <button class="btn btn-danger btn-full" id="btn-reset-data">データをすべて初期化する</button>
             </div>
+
+            <div class="card">
+                <div class="card-title">通知設定</div>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 14px;">
+                    スケジュールやTodoの締め切り通知を受け取ります。
+                </p>
+                <button class="btn btn-primary btn-full" id="btn-enable-notification">通知を有効にする</button>
+            </div>
+            
         </div>
 
     </main>
@@ -569,13 +564,10 @@
     <!-- アプリケーションロジック -->
     <script src="app.js"></script>
     <script>
-        // 🛠️ Service Workerの登録と同時に、アプリ通知(Push API)の受け皿の初期化フローへ繋ぎます
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
+        if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => {
-                        console.log('PWA ServiceWorker 登録成功!', reg.scope);
-                    })
+                    .then(reg => console.log('PWA ServiceWorker 登録成功成功!', reg.scope))
                     .catch(err => console.log('PWA ServiceWorker 登録失敗...', err));
             });
         }

@@ -60,9 +60,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // カラーピッカー初期化
     initColorPickers();
-    
-    // 🛠️ 追記：通知ボタンの設定を初期化
+    requestNotificationPermission(); // 起動時に通知許可をリクエスト
     setupNotificationButton();
+
 });
 
 function getEmptyState() {
@@ -125,6 +125,24 @@ function saveData() {
 function initTheme() {
     const theme = state.settings.theme || 'light';
     document.documentElement.setAttribute('data-theme', theme);
+}
+
+// 通知の許可をリクエストする関数
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("このブラウザは通知に対応していません。");
+        return;
+    }
+
+    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                console.log("通知が許可されました！");
+                // テスト用の即時通知
+                new Notification("TimeMatch", { body: "通知機能が有効になりました！" });
+            }
+        });
+    }
 }
 
 // ==========================================
@@ -2499,7 +2517,7 @@ function findNextAvailableFreeSlot(durationMs) {
     searchDate.setDate(searchDate.getDate() + 1);
     searchDate.setHours(8, 0, 0, 0);
 
-    // 最大 30日間探索する
+    // 最大30日間探索する
     for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
         const busySlots = getBusySlotsForDate(searchDate);
 
@@ -2583,50 +2601,45 @@ function rescheduleEvent(eventId, eventType) {
     showToast(`予定「${ev.title}」を ${dateStr} ${timeStr} にリスケしました！`, "success");
 }
 
-// ==========================================
-// 8. PWA通知関連ロジック (最末尾に綺麗に統合)
-// ==========================================
-
-/**
- * アプリ内から即時ローカル通知を配信する関数 (テスト用など)
- * @param {string} title 通知タイトル
- * @param {object} options bodyやiconなどのオプション
- */
 function sendLocalNotification(title, options = {}) {
+    // サービスワーカーがブラウザに対応していない場合は処理をスキップ
     if (!('serviceWorker' in navigator)) return;
 
+    // サービスワーカーの準備が整ったら通知を表示する
     navigator.serviceWorker.ready.then(registration => {
         const defaultOptions = {
             body: options.body || '',
-            icon: 'icons/icon-192x192.png',
+            icon: 'icons/icon-192x192.png', // PWAアイコンのパス
             badge: 'icons/icon-192x192.png',
-            vibrate: [200, 100, 200],
+            vibrate: [200, 100, 200],       // バイブレーションパターン（[振動, 休憩, 振動]）
             data: {
-                url: options.url || './'
+                url: options.url || './'    // 通知をクリックしたときに開くURL
             }
         };
         registration.showNotification(title, defaultOptions);
     });
 }
 
-/**
- * 設定画面の「通知を有効にする」ボタンに対する初期化処理
- */
 function setupNotificationButton() {
     const notifyBtn = document.getElementById("btn-enable-notification");
-    if (!notifyBtn) return;
+    if (!notifyBtn) return; // ボタンが画面にない場合は何もしない
 
+    // ボタンをクリックした時の動作
     notifyBtn.onclick = () => {
+        // ブラウザ自体が通知に対応しているかチェック
         if (!("Notification" in window)) {
             alert("このブラウザは通知に対応していません。");
             return;
         }
 
+        // ブラウザの公式な通知許可ポップアップを呼び出す
         Notification.requestPermission().then(permission => {
             if (permission === 'granted') {
                 alert("通知が許可されました！");
+                // 許可が取れたら、テストとして1回通知を鳴らす
                 sendLocalNotification("ライフ・オーガナイザー", { body: "通知の設定が完了しました！" });
             } else if (permission === 'denied') {
+                // 拒否（ブロック）されている場合
                 alert("通知がブロックされています。ブラウザの設定から許可してください。");
             }
         });
