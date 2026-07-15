@@ -37,33 +37,6 @@ const THEME_COLORS = [
     "#F97316"  // Orange
 ];
 
-// 初期サンプルデータ (初めてアプリを開いた際の設定)
-const SAMPLE_DATA = {
-    weeklySchedule: [
-        { id: "w-1", title: "週次全体ミーティング", day: 1, timeblock: "specific", startTime: "09:30", endTime: "10:30", category: "work", color: "#4F46E5", notes: "進捗報告と今週のタスク確認" },
-        { id: "w-2", title: "フィットネスジム", day: 2, timeblock: "evening", startTime: "", endTime: "", category: "private", color: "#10B981", notes: "脚トレーニング・有酸素" },
-        { id: "w-3", title: "英語学習 (英会話)", day: 3, timeblock: "morning", startTime: "", endTime: "", category: "private", color: "#8B5CF6", notes: "オンラインレッスン30分" },
-        { id: "w-4", title: "部屋の掃除・ゴミ出し", day: 4, timeblock: "morning", startTime: "", endTime: "", category: "private", color: "#EC4899", notes: "不燃ゴミの日" },
-        { id: "w-5", title: "週の振り返り・タスク整理", day: 5, timeblock: "afternoon", startTime: "", endTime: "", category: "work", color: "#0EA5E9", notes: "次週の目標設定" }
-    ],
-    todos: [
-        { id: "todo-1", title: "月次報告書の作成・提出", category: "work", priority: "high", deadline: "2026-05-29T18:00", notes: "フォーマットに沿って記入。部長へメール送付", completed: false },
-        { id: "todo-2", title: "牛乳と朝食用の食パンを買い出し", category: "shopping", priority: "low", deadline: "2026-05-28T12:00", notes: "期限の長いものを買う", completed: false },
-        { id: "todo-3", title: "美容院の予約を取る", category: "private", priority: "medium", deadline: "2026-05-30T10:00", notes: "土曜日の午後に空きがあるか確認", completed: true },
-        { id: "todo-4", title: "車のオイル交換予約", category: "other", priority: "medium", deadline: "2026-06-03T15:00", notes: "近くのディーラーへ連絡", completed: false }
-    ],
-    events: [
-        { id: "ev-1", title: "同僚と新宿でディナー", start: "2026-05-27T19:00", end: "2026-05-27T21:30", color: "#F59E0B", notes: "イタリアンバル。会費4,000円" },
-        { id: "ev-2", title: "歯医者で定期検診", start: "2026-05-28T15:00", end: "2026-05-28T16:00", color: "#0EA5E9", notes: "クリーニングとホワイトニング相談" },
-        { id: "ev-3", title: "家族の誕生日会", start: "2026-05-31T12:00", end: "2026-05-31T15:00", color: "#8B5CF6", notes: "実家にて食事会" }
-    ],
-    settings: {
-        saturday: true,
-        mondayStart: true,
-        theme: 'light'
-    },
-    timetableImage: ""
-};
 
 // カレンダー表示管理用
 let currentCalendarDate = new Date();
@@ -87,7 +60,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // カラーピッカー初期化
     initColorPickers();
+    requestNotificationPermission(); // 起動時に通知許可をリクエスト
+    setupNotificationButton();
+
 });
+
+function getEmptyState() {
+    return {
+        weeklySchedule: [],
+        todos: [],
+        events: [],
+        settings: {
+            saturday: true,
+            mondayStart: true,
+            theme: 'light'
+        },
+        timetableImage: ""
+    };
+}
 
 function loadData() {
     const saved = localStorage.getItem("campus_organizer_data");
@@ -95,11 +85,11 @@ function loadData() {
         try {
             state = JSON.parse(saved);
         } catch (e) {
-            console.error("データの読み込みに失敗しました。サンプルを使用します。", e);
-            state = JSON.parse(JSON.stringify(SAMPLE_DATA));
+            console.error("データの読み込みに失敗しました。データを初期化します。", e);
+            state = getEmptyState();
         }
     } else {
-        state = JSON.parse(JSON.stringify(SAMPLE_DATA));
+        state = getEmptyState();
         saveData();
     }
 
@@ -116,7 +106,7 @@ function loadData() {
         if (state.settings.theme === undefined) state.settings.theme = 'light';
     }
     if (state.timetableImage === undefined) state.timetableImage = "";
-    
+
     state.todos.forEach(t => {
         if (t.recurrence === undefined) t.recurrence = "none";
     });
@@ -135,6 +125,24 @@ function saveData() {
 function initTheme() {
     const theme = state.settings.theme || 'light';
     document.documentElement.setAttribute('data-theme', theme);
+}
+
+// 通知の許可をリクエストする関数
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("このブラウザは通知に対応していません。");
+        return;
+    }
+
+    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                console.log("通知が許可されました！");
+                // テスト用の即時通知
+                new Notification("TimeMatch", { body: "通知機能が有効になりました！" });
+            }
+        });
+    }
 }
 
 // ==========================================
@@ -268,13 +276,18 @@ function renderDashboard() {
             item.className = "dash-item";
             item.style.borderLeftColor = todo.priority === 'high' ? 'var(--accent-red)' : (todo.priority === 'medium' ? 'var(--accent-yellow)' : 'var(--accent-green)');
 
-            const catInfo = todo.category ? ` [${CATEGORIES[todo.category].label}]` : '';
+            const freeTime = calculateFreeTimeRemaining(todo.deadline);
+            const balancerClass = freeTime < 3 ? 'danger' : '';
+            const balancerIcon = freeTime < 3 ? '🚨' : '🕒';
+            const balancerBadge = `<span class="balancer-badge ${balancerClass}">${balancerIcon} 実質残り: ${freeTime}h</span>`;
 
             item.innerHTML = `
                 <div>
                     <div style="font-weight:700; font-size:0.95rem;">${todo.title}</div>
-                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">
-                        🏷️ ${CATEGORIES[todo.category].icon} ${CATEGORIES[todo.category].label} | 📅 締切: ${formatDate(todo.deadline)}
+                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        ${balancerBadge}
+                        <span>🏷️ ${CATEGORIES[todo.category].icon} ${CATEGORIES[todo.category].label}</span>
+                        <span>| 📅 締切: ${formatDate(todo.deadline)}</span>
                     </div>
                 </div>
                 <div class="todo-countdown ${countdownClass}">${countdownInfo.text}</div>
@@ -435,11 +448,7 @@ function renderSplitView() {
 
     // タイトルの切り替え
     const titleEl = document.getElementById("split-schedule-title");
-    if (titleEl) {
-        titleEl.innerText = isToday
-            ? "本日のスケジュール"
-            : `${baseDate.getMonth() + 1}月${baseDate.getDate()}日のスケジュール`;
-    }
+
 
     const dateEl = document.getElementById("split-date");
     if (dateEl) dateEl.innerText = dateStr;
@@ -500,7 +509,7 @@ function renderSplitView() {
                 const startStr = ev.start.split("T")[1] || "09:00";
                 const sParts = startStr.split(":");
                 start = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
-                
+
                 let endStr = "10:00";
                 if (ev.end) {
                     endStr = ev.end.split("T")[1] || "10:00";
@@ -641,10 +650,14 @@ function renderSplitView() {
 
                         slot.style.cursor = "pointer";
                         slot.onclick = (e) => {
-                            if (!e.target.closest('.btn-item-delete')) {
+                            if (!e.target.closest('.btn-item-delete') && !e.target.closest('.btn-reschedule')) {
                                 openEditEventOrWeekly(p.id, p.type);
                             }
                         };
+
+                        const rescheduleBtn = p.type === 'event' ? `
+                            <button class="btn-reschedule" onclick="rescheduleEvent('${p.id}', '${p.type}'); event.stopPropagation();" title="翌日以降の空き時間にリスケ">🔄</button>
+                        ` : '';
 
                         slot.innerHTML = `
                             <div style="flex: 1;">
@@ -654,7 +667,10 @@ function renderSplitView() {
                                 </div>
                                 ${p.notes ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${p.notes}</div>` : ''}
                             </div>
-                            <button class="btn-item-delete" onclick="deleteEventOrWeekly('${p.id}', '${p.type}', event)" title="削除">🗑️</button>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                ${rescheduleBtn}
+                                <button class="btn-item-delete" onclick="deleteEventOrWeekly('${p.id}', '${p.type}', event)" title="削除">🗑️</button>
+                            </div>
                         `;
                         leftContainer.appendChild(slot);
                     });
@@ -1241,12 +1257,21 @@ function renderTodoList() {
             </span>
         ` : '';
 
+        let balancerBadge = '';
+        if (!todo.completed) {
+            const freeTime = calculateFreeTimeRemaining(todo.deadline);
+            const balancerClass = freeTime < 3 ? 'danger' : '';
+            const balancerIcon = freeTime < 3 ? '🚨' : '🕒';
+            balancerBadge = `<span class="balancer-badge ${balancerClass}">${balancerIcon} 実質残り: ${freeTime}h</span>`;
+        }
+
         card.innerHTML = `
             <div class="todo-left">
                 <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" onclick="toggleTodoCompleted('${todo.id}', event)"></div>
                 <div class="todo-info-group">
                     <div class="todo-main-title">${todo.title}</div>
-                    <div class="todo-meta-info">
+                    <div class="todo-meta-info" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        ${balancerBadge}
                         ${catBadge}
                         <span>📅 締切: ${formatDate(todo.deadline)}</span>
                         <span class="priority-badge ${todo.priority}">${todo.priority === 'high' ? '高' : (todo.priority === 'medium' ? '中' : '低')}</span>
@@ -1448,7 +1473,7 @@ function toggleEventAllDay() {
         endInput.type = "date";
         if (startLabel) startLabel.innerText = "開始日 *";
         if (endLabel) endLabel.innerText = "終了日";
-        
+
         if (startVal && startVal.includes("T")) startInput.value = startVal.split("T")[0];
         if (endVal && endVal.includes("T")) endInput.value = endVal.split("T")[0];
     } else {
@@ -1464,7 +1489,7 @@ function toggleEventAllDay() {
 
 function isEventOnDate(ev, dateStr) {
     const evStartStr = ev.start.split("T")[0];
-    
+
     if (!ev.recurrence || ev.recurrence === 'none') {
         if (ev.end) {
             const evEndStr = ev.end.split("T")[0];
@@ -1472,24 +1497,24 @@ function isEventOnDate(ev, dateStr) {
         }
         return evStartStr === dateStr;
     }
-    
+
     if (dateStr < evStartStr) return false;
-    
+
     const targetDate = new Date(dateStr);
     const startDate = new Date(evStartStr);
-    
+
     if (ev.recurrence === 'daily') {
         return true;
     }
-    
+
     if (ev.recurrence === 'weekly') {
         return targetDate.getDay() === startDate.getDay();
     }
-    
+
     if (ev.recurrence === 'monthly') {
         return targetDate.getDate() === startDate.getDate();
     }
-    
+
     return false;
 }
 
@@ -1671,10 +1696,11 @@ function openAddEvent(dateStr = "") {
     if (dateStr) {
         const d = new Date(dateStr);
         d.setHours(10, 0, 0, 0);
-        document.getElementById("event-start").value = formatDateISO(d);
+        document.getElementById("event-start").value = formatDateTimeLocal(d); // ← 修正
         d.setHours(11, 0, 0, 0);
-        document.getElementById("event-end").value = formatDateISO(d);
-    } else {
+        document.getElementById("event-end").value = formatDateTimeLocal(d);   // ← 修正
+    }
+    else {
         document.getElementById("event-start").value = formatDateTimeLocal(now);
         now.setHours(now.getHours() + 1);
         document.getElementById("event-end").value = formatDateTimeLocal(now);
@@ -1696,7 +1722,7 @@ function openEditEvent(id) {
     document.getElementById("event-modal-title").innerText = "予定の編集";
     document.getElementById("event-id").value = ev.id;
     document.getElementById("event-title").value = ev.title;
-    
+
     document.getElementById("event-allday").checked = !!ev.allDay;
     toggleEventAllDay();
 
@@ -1802,7 +1828,8 @@ function openDayDetails(date, dayEvents, dayTodos, dayWeekly) {
                     ${extraText ? `<div style="font-size:0.75rem; color:var(--primary); font-weight:500; margin-top:2px;">${extraText}</div>` : ''}
                     ${ev.notes ? `<div style="font-size:0.7rem; color:var(--text-secondary); margin-top:2px;">${ev.notes}</div>` : ''}
                 </div>
-                <div style="display:flex; gap:6px;">
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <button class="btn-reschedule" onclick="rescheduleEvent('${ev.id}', 'event'); closeModal('modal-day-details');" title="翌日以降の空き時間にリスケ">🔄</button>
                     <button class="todo-delete-btn" onclick="openEditEvent('${ev.id}')" title="編集">✏️</button>
                     <button class="todo-delete-btn" onclick="deleteEvent('${ev.id}')" title="削除">🗑️</button>
                 </div>
@@ -1919,29 +1946,36 @@ function initEventListeners() {
     });
 
     // 2. Todoフォーム Submit
+    // 2. Todoフォーム Submit (app.js の既存コード内)
     document.getElementById("form-todo").addEventListener("submit", (e) => {
         e.preventDefault();
-
-        const id = document.getElementById("todo-id").value;
+        
+        const id = document.getElementById("todo-id").value || "todo-" + Date.now();
         const newTodo = {
-            id: id || "todo-" + Date.now(),
+            id: id,
             title: document.getElementById("todo-title").value,
             category: document.getElementById("todo-category").value,
             priority: document.getElementById("todo-priority").value,
             deadline: document.getElementById("todo-deadline").value,
             notes: document.getElementById("todo-notes").value,
             recurrence: document.getElementById("todo-recurrence").value,
-            completed: id ? state.todos.find(t => t.id === id).completed : false
+            completed: id ? (state.todos.find(t => t.id === id)?.completed || false) : false
         };
 
-        if (id) {
+        // 既存の保存処理...
+        if (document.getElementById("todo-id").value) {
             const idx = state.todos.findIndex(t => t.id === id);
             if (idx !== -1) state.todos[idx] = newTodo;
         } else {
             state.todos.push(newTodo);
         }
-
         saveData();
+
+        // ★★★ 追記：10分前通知をスケジュール ★★★
+        if (!newTodo.completed) {
+            scheduleNotification10MinBefore(newTodo.id, `【タスク締切】${newTodo.title}`, newTodo.deadline);
+        }
+
         closeModal("modal-todo-edit");
         renderTodoList();
         renderDashboard();
@@ -1949,14 +1983,14 @@ function initEventListeners() {
         renderCalendar();
     });
 
-    // 3. カレンダー単発予定フォーム Submit
+    // 3. カレンダー単発予定フォーム Submit (app.js の既存コード内)
     document.getElementById("form-event").addEventListener("submit", (e) => {
         e.preventDefault();
 
-        const id = document.getElementById("event-id").value;
+        const id = document.getElementById("event-id").value || "ev-" + Date.now();
         const travelVal = document.getElementById("event-travel-time").value;
         const newEvent = {
-            id: id || "ev-" + Date.now(),
+            id: id,
             title: document.getElementById("event-title").value,
             start: document.getElementById("event-start").value,
             end: document.getElementById("event-end").value,
@@ -1968,14 +2002,20 @@ function initEventListeners() {
             travelTime: travelVal ? parseInt(travelVal) : 0
         };
 
-        if (id) {
+        // 既存の保存処理...
+        if (document.getElementById("event-id").value) {
             const idx = state.events.findIndex(ev => ev.id === id);
             if (idx !== -1) state.events[idx] = newEvent;
         } else {
             state.events.push(newEvent);
         }
-
         saveData();
+
+        // ★★★ 追記：10分前通知をスケジュール ★★★
+        if (!newEvent.allDay) { // 終日予定ではない場合のみ時間基準で予約
+            scheduleNotification10MinBefore(newEvent.id, `【まもなく予定】${newEvent.title}`, newEvent.start);
+        }
+
         closeModal("modal-event-edit");
         renderCalendar();
         renderDashboard();
@@ -2159,6 +2199,7 @@ function initEventListeners() {
             }
         });
     });
+
 }
 
 // 状態フィルター適用
@@ -2270,128 +2311,6 @@ function compressImage(base64Str, maxWidth, quality, callback) {
         const compressed = canvas.toDataURL("image/jpeg", quality);
         callback(compressed);
     };
-
-    // ==========================================
-    // 6. スマホ向け左右スワイプ画面切り替え機能（案Bベース）
-    // ==========================================
-
-    // 画面の並び順を定義（HTMLの各ページIDと一致）
-    const PAGE_ORDER = ['page-dashboard', 'page-calendar', 'page-todo', 'page-split'];
-
-    let touchStartX = 0;
-    let touchStartY = 0;
-
-    // イベントを設定するメインコンテナ（HTMLのmainタグ）
-    const mainContainer = document.querySelector('main');
-
-    if (mainContainer) {
-        // 指が画面に触れた時の処理
-        mainContainer.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        }, { passive: true });
-
-        // 指が画面から離れた時の処理
-        mainContainer.addEventListener('touchend', (e) => {
-            // 1. 現在アクティブなページのIDを取得
-            const activePage = document.querySelector('.page.active');
-            if (!activePage) return;
-            const currentPageId = activePage.id;
-
-            // ★【見比べ画面（page-split）ではスワイプ切り替えをロック】
-            // 中央のスライダー（レジライザー）操作と衝突するのを防ぐため
-            if (currentPageId === 'page-split') {
-                return;
-            }
-
-            const touchEndX = e.changedTouches[0].clientX;
-            const touchEndY = e.changedTouches[0].clientY;
-
-            // 動いた距離（差分）を計算
-            const diffX = touchStartX - touchEndX;
-            const diffY = touchStartY - touchEndY;
-
-            // 【誤作動防止フィルター1】縦スクロール（上下移動）のほうが大きい場合は処理しない
-            if (Math.abs(diffY) > Math.abs(diffX)) {
-                return;
-            }
-
-            // 【誤作動防止フィルター2】横の移動距離が小さすぎる（50px未満）場合は無視
-            if (Math.abs(diffX) < 50) {
-                return;
-            }
-
-            // カレンダー表示時の月切り替え（次月・前月）
-            if (currentPageId === 'page-calendar') {
-                if (diffX > 0) {
-                    // 左スワイプ ➔ 次の月へ
-                    const nextBtn = document.getElementById("cal-next");
-                    if (nextBtn) nextBtn.click();
-                } else {
-                    // 右スワイプ ➔ 前の月へ
-                    const prevBtn = document.getElementById("cal-prev");
-                    if (prevBtn) prevBtn.click();
-                }
-                return;
-            }
-
-            // 現在のページが配列の何番目にあるかを取得
-            let currentIndex = PAGE_ORDER.indexOf(currentPageId);
-            if (currentIndex === -1) return;
-
-            // 左右の判定とページ切り替え実行
-            if (diffX > 0) {
-                // 【左スワイプ】指を右から左へ動かした ⇒ 次の画面へ
-                if (currentIndex < PAGE_ORDER.length - 1) {
-                    const nextPageId = PAGE_ORDER[currentIndex + 1];
-                    if (typeof switchPage === 'function') {
-                        switchPage(nextPageId);
-                    } else {
-                        executePageChange(nextPageId);
-                    }
-                }
-            } else {
-                // 【右スワイプ】指を左から右へ動かした ⇒ 前の画面へ
-                if (currentIndex > 0) {
-                    const prevPageId = PAGE_ORDER[currentIndex - 1];
-                    if (typeof switchPage === 'function') {
-                        switchPage(prevPageId);
-                    } else {
-                        executePageChange(prevPageId);
-                    }
-                }
-            }
-        }, { passive: true });
-    }
-
-    // 万が一、既存のswitchPageがうまく動かない場合の予備の切り替え処理
-    function executePageChange(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        const targetPage = document.getElementById(pageId);
-        if (targetPage) targetPage.classList.add('active');
-
-        // ボトムナビのボタンのアクティブ状態も連動させる
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.remove('active');
-            // hrefやonclickの属性値、またはデータ属性から判定
-            if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(pageId)) {
-                item.classList.add('active');
-            }
-        });
-
-        // ヘッダーのタイトルを更新
-        const headerTitle = document.getElementById('header-title');
-        if (headerTitle) {
-            const pageNames = {
-                'page-dashboard': 'ダッシュボード',
-                'page-planner': '週間プランナー',
-                'page-calendar': 'カレンダー',
-                'page-todo': 'Todoリスト',
-                'page-split': '見比べ画面'
-            };
-            headerTitle.innerText = pageNames[pageId] || 'ライフ・オーガナイザー';
-        }
-    }
 }
 
 // ポップアップメニュー制御用
@@ -2414,7 +2333,7 @@ function closeAllMenus() {
 function openAddEventFromTimeline(startTime, endTime) {
     const now = new Date();
     const dateStr = formatDateISO(now);
-    
+
     document.getElementById("event-modal-title").innerText = "予定の追加";
     document.getElementById("form-event").reset();
     document.getElementById("event-id").value = "";
@@ -2447,5 +2366,335 @@ function deleteEventOrWeekly(id, type, event) {
     } else {
         if (event) event.stopPropagation();
         deleteEvent(id);
+    }
+}
+
+// ==========================================
+// 7. 実質残り時間バランサー ＆ 自動リスケ機能
+// ==========================================
+
+// トースト通知を表示
+function showToast(message, type = 'success') {
+    const container = document.getElementById("toast-container");
+    if (!container) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    // アニメーションが終了したら削除 (3秒後)
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// 特定の日の予定（習慣＋単発）を分単位のビジースロット[startMin, endMin]として取得しマージする
+function getBusySlotsForDate(date) {
+    const dateISO = formatDateISO(date);
+    const dow = date.getDay();
+
+    const todayWeekly = state.weeklySchedule.filter(w => w.day === dow);
+    const todayEvents = state.events.filter(ev => isEventOnDate(ev, dateISO));
+
+    let slots = [];
+
+    todayWeekly.forEach(w => {
+        let start, end;
+        if (w.timeblock === 'morning') { start = 480; end = 600; }
+        else if (w.timeblock === 'afternoon') { start = 780; end = 900; }
+        else if (w.timeblock === 'evening') { start = 1080; end = 1200; }
+        else {
+            const sParts = (w.startTime || "09:00").split(":");
+            start = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
+            const eParts = (w.endTime || "10:00").split(":");
+            end = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
+        }
+        if (end <= start) end = start + 60;
+        slots.push({ start, end });
+    });
+
+    todayEvents.forEach(ev => {
+        let start, end;
+        if (ev.allDay) {
+            start = 480; end = 1320;
+        } else {
+            const startStr = ev.start.split("T")[1] || "09:00";
+            const sParts = startStr.split(":");
+            start = parseInt(sParts[0]) * 60 + parseInt(sParts[1]);
+
+            let endStr = "10:00";
+            if (ev.end) {
+                endStr = ev.end.split("T")[1] || "10:00";
+            } else {
+                const endH = String(Math.floor(start / 60) + 1).padStart(2, '0');
+                const endM = String(start % 60).padStart(2, '0');
+                endStr = `${endH}:${endM}`;
+            }
+            const eParts = endStr.split(":");
+            end = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
+        }
+        if (end <= start) end = start + 60;
+        slots.push({ start, end });
+    });
+
+    // 開始順にソート
+    slots.sort((a, b) => a.start - b.start);
+
+    // マージ処理
+    let merged = [];
+    slots.forEach(s => {
+        if (merged.length === 0) {
+            merged.push(s);
+        } else {
+            let last = merged[merged.length - 1];
+            if (s.start < last.end) {
+                last.end = Math.max(last.end, s.end);
+            } else {
+                merged.push(s);
+            }
+        }
+    });
+
+    return merged;
+}
+
+// 締切までの実質的な空き時間（時間数）を計算
+function calculateFreeTimeRemaining(deadlineStr) {
+    if (!deadlineStr) return 0;
+    const now = new Date();
+    const deadline = new Date(deadlineStr);
+
+    if (now >= deadline) return 0;
+
+    let totalFreeMinutes = 0;
+
+    // 現在日から締切日まで日単位でループ
+    let currentDate = new Date(now);
+    currentDate.setHours(0, 0, 0, 0);
+
+    const targetEnd = new Date(deadline);
+    targetEnd.setHours(0, 0, 0, 0);
+
+    while (currentDate <= targetEnd) {
+        // その日の活動可能範囲（08:00 - 22:00 = 480 - 1320分）
+        let startLimit = 480;
+        let endLimit = 1320;
+
+        const isToday = currentDate.getTime() === (new Date(now).setHours(0, 0, 0, 0));
+        const isDeadlineDay = currentDate.getTime() === targetEnd.getTime();
+
+        if (isToday) {
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            startLimit = Math.max(480, nowMinutes);
+        }
+        if (isDeadlineDay) {
+            const deadlineMinutes = deadline.getHours() * 60 + deadline.getMinutes();
+            endLimit = Math.min(1320, deadlineMinutes);
+        }
+
+        if (startLimit < endLimit) {
+            const busySlots = getBusySlotsForDate(currentDate);
+
+            // 活動可能範囲内のbusy時間を計算
+            let busyMinutes = 0;
+            busySlots.forEach(slot => {
+                const s = Math.max(startLimit, slot.start);
+                const e = Math.min(endLimit, slot.end);
+                if (s < e) {
+                    busyMinutes += (e - s);
+                }
+            });
+
+            const dayFreeMinutes = (endLimit - startLimit) - busyMinutes;
+            if (dayFreeMinutes > 0) {
+                totalFreeMinutes += dayFreeMinutes;
+            }
+        }
+
+        // 次の日に進む
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return parseFloat((totalFreeMinutes / 60).toFixed(1));
+}
+
+// ミリ秒単位の所要時間を満たす次の空きスロット（明日以降）を探索
+function findNextAvailableFreeSlot(durationMs) {
+    const durationMin = Math.ceil(durationMs / (60 * 1000));
+    const now = new Date();
+
+    // 「ワンタップ翌日スキップ」なので翌日の08:00から探索を開始する
+    let searchDate = new Date(now);
+    searchDate.setDate(searchDate.getDate() + 1);
+    searchDate.setHours(8, 0, 0, 0);
+
+    // 最大30日間探索する
+    for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
+        const busySlots = getBusySlotsForDate(searchDate);
+
+        // 08:00 (480) 〜 22:00 (1320) の空きスロットをリストアップ
+        let currentMin = 480;
+        let freeSlots = [];
+
+        busySlots.forEach(slot => {
+            if (slot.start - currentMin >= durationMin) {
+                freeSlots.push({ start: currentMin, end: slot.start });
+            }
+            currentMin = Math.max(currentMin, slot.end);
+        });
+
+        if (1320 - currentMin >= durationMin) {
+            freeSlots.push({ start: currentMin, end: 1320 });
+        }
+
+        // 最初の適合スロットが見つかったら返す
+        if (freeSlots.length > 0) {
+            const chosen = freeSlots[0];
+            const startHour = Math.floor(chosen.start / 60);
+            const startMin = chosen.start % 60;
+
+            const startRes = new Date(searchDate);
+            startRes.setHours(startHour, startMin, 0, 0);
+
+            const endRes = new Date(startRes.getTime() + durationMs);
+            return { start: startRes, end: endRes };
+        }
+
+        searchDate.setDate(searchDate.getDate() + 1);
+    }
+
+    // 万が一見つからない場合は、明日の09:00〜10:00などをフォールバックとする
+    let fallbackStart = new Date(now);
+    fallbackStart.setDate(fallbackStart.getDate() + 1);
+    fallbackStart.setHours(9, 0, 0, 0);
+    let fallbackEnd = new Date(fallbackStart.getTime() + durationMs);
+    return { start: fallbackStart, end: fallbackEnd };
+}
+
+// 予定を自動リスケ（翌日以降の空き時間に移動）
+function rescheduleEvent(eventId, eventType) {
+    if (eventType === 'weekly') {
+        showToast("習慣スケジュールはリスケできません（単発予定のみ有効です）。", "warning");
+        return;
+    }
+
+    const idx = state.events.findIndex(e => e.id === eventId);
+    if (idx === -1) return;
+
+    const ev = state.events[idx];
+
+    // イベントの所要時間を算出 (デフォルト1時間)
+    let durationMs = 60 * 60 * 1000;
+    if (ev.start) {
+        const startT = new Date(ev.start).getTime();
+        const endT = ev.end ? new Date(ev.end).getTime() : startT + durationMs;
+        durationMs = Math.max(30 * 60 * 1000, endT - startT); // 最低30分
+    }
+
+    // 次の空きスロットを探索
+    const newSlot = findNextAvailableFreeSlot(durationMs);
+
+    // イベント更新
+    ev.start = formatDateTimeLocal(newSlot.start);
+    ev.end = formatDateTimeLocal(newSlot.end);
+    ev.allDay = false; // 終日だった場合も時間指定に変換
+
+    saveData();
+
+    // 画面の更新
+    renderCalendar();
+    renderDashboard();
+    renderSplitView();
+
+    // トースト通知
+    const dateStr = `${newSlot.start.getMonth() + 1}/${newSlot.start.getDate()}`;
+    const timeStr = `${String(newSlot.start.getHours()).padStart(2, '0')}:${String(newSlot.start.getMinutes()).padStart(2, '0')}`;
+    showToast(`予定「${ev.title}」を ${dateStr} ${timeStr} にリスケしました！`, "success");
+}
+
+function sendLocalNotification(title, options = {}) {
+    // サービスワーカーがブラウザに対応していない場合は処理をスキップ
+    if (!('serviceWorker' in navigator)) return;
+
+    // サービスワーカーの準備が整ったら通知を表示する
+    navigator.serviceWorker.ready.then(registration => {
+        const defaultOptions = {
+            body: options.body || '',
+            icon: 'icons/icon-192x192.png', // PWAアイコンのパス
+            badge: 'icons/icon-192x192.png',
+            vibrate: [200, 100, 200],       // バイブレーションパターン（[振動, 休憩, 振動]）
+            data: {
+                url: options.url || './'    // 通知をクリックしたときに開くURL
+            }
+        };
+        registration.showNotification(title, defaultOptions);
+    });
+}
+
+function setupNotificationButton() {
+    const notifyBtn = document.getElementById("btn-enable-notification");
+    if (!notifyBtn) return; // ボタンが画面にない場合は何もしない
+
+    // ボタンをクリックした時の動作
+    notifyBtn.onclick = () => {
+        // ブラウザ自体が通知に対応しているかチェック
+        if (!("Notification" in window)) {
+            alert("このブラウザは通知に対応していません。");
+            return;
+        }
+
+        // ブラウザの公式な通知許可ポップアップを呼び出す
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                alert("通知が許可されました！");
+                // 許可が取れたら、テストとして1回通知を鳴らす
+                sendLocalNotification("ライフ・オーガナイザー", { body: "通知の設定が完了しました！" });
+            } else if (permission === 'denied') {
+                // 拒否（ブロック）されている場合
+                alert("通知がブロックされています。ブラウザの設定から許可してください。");
+            }
+        });
+    };
+}
+
+// 予定・タスクの10分前にローカル通知をスケジュールする関数
+async function scheduleNotification10MinBefore(id, title, dateTimeStr) {
+    // サービスワーカー、およびNotification Triggerへの対応状況をチェック
+    if (!('serviceWorker' in navigator)) {
+        console.warn("サービスワーカーがサポートされていません。");
+        return;
+    }
+
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        
+        // 予定時刻の10分前のタイムスタンプを計算
+        const eventTime = new Date(dateTimeStr).getTime();
+        const triggerTime = eventTime - (10 * 60 * 1000); // 10分前（10分 × 60秒 × 1000ミリ秒）
+
+        // 10分前の時刻が、すでに現在時刻より前の場合はスケジュールしない
+        if (triggerTime <= Date.now()) {
+            console.log("過去の予定、または開始まで10分未満のため、通知はスケジュールされません。");
+            return;
+        }
+
+        // Notification Triggers (TimestampTrigger) の対応可否を判定
+        if ('showTrigger' in Notification.prototype || typeof TimestampTrigger !== 'undefined') {
+            await registration.showNotification(title, {
+                body: `まもなく予定の10分前になります！ (${new Date(eventTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} 開始)`,
+                icon: 'icon.png',
+                badge: 'icon.png',
+                tag: id, // 同じIDで登録することで、変更・更新時に通知が重複するのを防ぐ
+                data: { url: './' },
+                showTrigger: new TimestampTrigger(triggerTime) // 計算した10分前の時間でトリガー
+            });
+            console.log(`[通知予約] 「${title}」の10分前（${new Date(triggerTime).toLocaleString()}）にスケジュールしました。`);
+        } else {
+            console.warn("このブラウザはローカル通知のスケジュール（TimestampTrigger）に未対応です。");
+        }
+    } catch (err) {
+        console.error("通知のスケジュールに失敗しました:", err);
     }
 }
